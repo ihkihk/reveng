@@ -1,7 +1,6 @@
 .title "Challenges.re/2"
 
 .arch i686
-#.code32
 
 .data
 
@@ -11,6 +10,7 @@ v:
 .long  9,-1,-1,-1, 27,-1, 3,-1, -1,-1,20,-1, 18,24,15,10
 .long -1,-1, 4,-1, 21,-1,16,11, -1,22,-1,12, 13,-1, 0,-1
 
+helloStr: .string "Hello world!\n"
 noParamsStr: .string "No command-line params. Exiting!\n"
 convStr: .string "Converting %s\n"
 convertedValStr: .string "Converted value: %d\n"
@@ -31,7 +31,7 @@ reg2bin:
     pushq %rbx
     pushq %rdx
     pushf
-    
+
     movl $32,%ecx
     movl $0x11111110, %edx
     leaq bin_digits(%rip), %rbx
@@ -44,7 +44,7 @@ reg2bin:
 .L4: # add a '_'
     movb $'_', (%rbx)
     decq %rbx
-.L5: # don't add a '_'    
+.L5: # don't add a '_'
     shrl $1, %eax
     jc   .L0
     # bit is 0
@@ -70,15 +70,26 @@ printReg:
     pushq %rdx
     pushq %rcx
     pushf
-    
+
+.ifdef LINUX
+    movq %r8, %rsi
+    movq %rax, %rdx
+.else
     movq %r8, %rdx
     movq %rax, %r8
-    
+.endif
+
     call reg2bin
+.ifdef LINUX
+    leaq bin_digits(%rip), %rcx
+    leaq regFmtStr(%rip), %rdi
+.else
     leaq bin_digits(%rip), %r9
     leaq regFmtStr(%rip), %rcx
+.endif
+    movl $0, %eax
     callq printf
-    
+
     popf
     popq %rcx
     popq %rdx
@@ -86,41 +97,64 @@ printReg:
     popq %r8
     popq %rax
     ret
-    
+
 main:
+    pushq %rbp
+    movq  %rsp, %rbp
     pushq %rax
     pushq %rbx
     pushq %rcx
     pushq %rdx
+    pushq %rdi
+    pushq %rsi
     pushq %r8
     pushf
-    
-    testq %rcx, %rcx  # ecx = argc
-    decq %rcx
+
+.ifdef LINUX
+    decq %rdi # rdi = argc
+.else
+    decq %rcx # ecx = argc
+.endif
     jg  .L12
-    # no command line params - 
+    # no command line params -
+.ifdef LINUX
+    leaq noParamsStr(%rip), %rdi
+.else
     leaq noParamsStr(%rip), %rcx
+.endif
     callq printf
     jmp .L_fini
-    
+
 .L12:
+.ifdef LINUX
+    leaq 8(%rsi),%rax
+    movq (%rax), %rsi
+    leaq convStr(%rip), %rdi
+    pushq %rsi
+.else
     leaq convStr(%rip), %rcx
     leaq 8(%rdx), %rdx # goto argv[1]
     movq (%rdx), %rdx
     pushq %rdx
+.endif
+    movl $0, %eax
     callq printf # %rdx already contains the string of the 1st param
-    
+
+.ifdef LINUX
+    popq %rdi
+.else
     popq %rcx
+.endif
     callq atoi
-    
-    #movl $1, %eax
+
+    # movl $1, %eax
     leaq eaxStr(%rip), %r8
     call printReg
 
     movl %eax, %edx
     shrl %edx
     orl  %eax, %edx
-    
+
     movl %edx, %eax
     leaq edxStr(%rip), %r8
     call printReg
@@ -128,14 +162,14 @@ main:
     movl %edx, %eax
     shrl $2, %eax
     orl  %edx, %eax
-    
+
     leaq eaxStr(%rip), %r8
     call printReg
 
     movl %eax, %edx
     shrl $4, %edx
     orl  %eax, %edx
-    
+
     movl %edx, %eax
     leaq edxStr(%rip), %r8
     call printReg
@@ -146,47 +180,56 @@ main:
 
     leaq eaxStr(%rip), %r8
     call printReg
-    
+
     movl %eax, %edx
     shrl $16, %edx
     orl  %eax, %edx
-    
+
     movl %edx, %eax
     leaq edxStr(%rip), %r8
     call printReg
-    
+
     imull $0x4badf0d, %edx, %eax
-    
+
     leaq eaxStr(%rip), %r8
     call printReg
 
     shrl $26, %eax
-    
+
     leaq eaxStr(%rip), %r8
     call printReg
 
-    movabs $v, %rbx
+    leaq v(%rip), %rbx
     movl (%rbx, %rax, 4), %eax
-    
+
     leaq eaxStr(%rip), %r8
     call printReg
-    
+
+.ifdef LINUX
+    leaq convertedValStr(%rip), %rdi
+    movq %rax, %rsi
+.else
     leaq convertedValStr(%rip), %rcx
     movq %rax, %rdx
+.endif
     callq printf
 
-    #movabs v(, %rax, 4), %rax
-
-    #movl $0, %ebx
-    #movl $1, %eax
-    #int  $0x80
 .L_fini:
     popf
     popq %r8
+    popq %rsi
+    popq %rdi
     popq %rdx
     popq %rcx
     popq %rbx
     popq %rax
-    
+    popq %r9
+
+.ifdef LINUX
+    movl $0, %ebx
+    movl $1, %eax
+    int  $0x80
+.else
     movq $0, %rax
     ret
+.endif
