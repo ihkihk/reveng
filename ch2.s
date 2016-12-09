@@ -13,6 +13,7 @@ v:
 
 noParamsStr: .string "No command-line params. Exiting!\n"
 convStr: .string "Converting %s\n"
+convertedValStr: .string "Converted value: %d\n"
 
 eaxStr: .string "EAX"
 edxStr: .string "EDX"
@@ -87,13 +88,20 @@ printReg:
     ret
     
 main:
+    pushq %rax
+    pushq %rbx
+    pushq %rcx
+    pushq %rdx
+    pushq %r8
+    pushf
+    
     testq %rcx, %rcx  # ecx = argc
     decq %rcx
     jg  .L12
     # no command line params - 
     leaq noParamsStr(%rip), %rcx
     callq printf
-    ret
+    jmp .L_fini
     
 .L12:
     leaq convStr(%rip), %rcx
@@ -162,11 +170,23 @@ main:
     
     leaq eaxStr(%rip), %r8
     call printReg
+    
+    leaq convertedValStr(%rip), %rcx
+    movq %rax, %rdx
+    callq printf
 
     #movabs v(, %rax, 4), %rax
 
     #movl $0, %ebx
     #movl $1, %eax
     #int  $0x80
+.L_fini:
+    popf
+    popq %r8
+    popq %rdx
+    popq %rcx
+    popq %rbx
+    popq %rax
+    
     movq $0, %rax
     ret
